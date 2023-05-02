@@ -1,14 +1,8 @@
-import {
-  Client,
-  Collection,
-  GatewayIntentBits,
-  SlashCommandBuilder,
-  REST,
-  Routes,
-} from 'discord.js';
+import { Client, Collection, GatewayIntentBits, REST, Routes } from 'discord.js';
 import path from 'path';
 import fs from 'fs';
 import 'dotenv/config';
+import { Command } from './interfaces/Command';
 
 const client = new Client({
   intents: [
@@ -20,31 +14,24 @@ const client = new Client({
 
 client.on('ready', () => {
   console.log(`Logged in as ${client.user?.tag}!`);
+  loadCommands();
 });
-
-interface Command {
-  data: SlashCommandBuilder;
-  cooldown?: number;
-  permissions?: string[];
-  execute: (interaction: any) => Promise<void>;
-}
 
 const commands = new Collection<string, Command>();
 
-const ping: Command = {
-  data: new SlashCommandBuilder()
-    .setName('ping')
-    .setDescription('Replies with Pong! SO COOL!'),
-  execute: async (interaction) => {
-    await interaction.reply('Pong!');
-  },
-};
+const loadCommands = async () => {
+  const commandPath = path.join(__dirname, 'commands');
+  const commandFiles = fs.readdirSync(commandPath).filter((file) => file.endsWith('.js'));
 
-commands.set(ping.data.name, ping);
+  for (const file of commandFiles) {
+    const filePath = path.join(commandPath, file);
 
-const rest = new REST().setToken(process.env.DISCORD_TOKEN);
+    const command = (await import(filePath)).default as Command;
+    commands.set(command.data.name, command);
+  }
 
-(async () => {
+  const rest = new REST().setToken(process.env.DISCORD_TOKEN);
+
   try {
     console.log('Started refreshing application (/) commands.');
 
@@ -57,7 +44,7 @@ const rest = new REST().setToken(process.env.DISCORD_TOKEN);
   } catch (error) {
     console.error(error);
   }
-})();
+};
 
 client.on('interactionCreate', async (interaction) => {
   if (!interaction.isCommand()) return;
